@@ -16,7 +16,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.cross_validation import train_test_split
+from sklearn.model_selection import train_test_split
 import scipy.stats as st
 from sklearn.cross_validation import KFold
 from sklearn.naive_bayes import GaussianNB
@@ -25,6 +25,8 @@ import random
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from statsmodels.tsa.ar_model import AR
+from datetime import datetime
+
 
 
 
@@ -57,7 +59,7 @@ points = ['145_73_0_72_99', '174_67_75_72_91','175_68_95_73_03','176_72_67_73_35
 hist = ['wind_speed','pick_period','Avg_wave_period']
 coef = []
 point = []
-for i in range(236664):
+for i in range(47333):
     point.append(i)
 for j in points:
     
@@ -72,9 +74,9 @@ for j in points:
     data_y = data[need_cols_y]
     data_x.columns = ['wind_speed','pick_period','Avg_wave_period']
     data_y.columns = ['hs']
-    train_data_y = data_y[1:len(data_y)-12]
+    train_data_y = data_y[1:len(data_y)-47333]
     y_final = []
-    #test_data = data_y[data_y[len(data_y)-12:]]
+    test_data_y = data_y[len(data_y)-47333:]
     model_auto = AR(train_data_y)
     model_fitted = model_auto.fit()
     print(len(model_fitted.params))
@@ -82,10 +84,11 @@ for j in points:
    # data_x['wave_dir'] = data_x['wave_dir'].apply(dir)
     #clf = linear_model.Lasso(alpha=0.1, copy_X=True, fit_intercept=True, max_iter=1000, normalize=False, positive=False, precompute=False, random_state=None, selection='cyclic', tol=0.0001, warm_start=False)
     data_x = data_x.dropna()
-    train_data_x = data_x[1:len(data_x)-12]
+
     
     model_norm = LinearRegression()
-    Xtrn, Xtest, Ytrn, Ytest = train_test_split(train_data_x, train_data_y, test_size=0.33)
+    Xtrn, Xtest = train_test_split(data_x, shuffle=False, test_size=0.2)
+    Ytrn, Ytest = train_test_split(data_y, shuffle=False, test_size=0.2)
     #for i in range (100):
      #   n_split = round(random.random(),1)
       #  while n_split < 0.2 or n_split==1:
@@ -95,11 +98,48 @@ for j in points:
     model_norm.fit(Xtrn, Ytrn)
         #print(model_norm.coef_)
   
-    y_1 = model_fitted.predict(start=len(train_data_y))
-    y_2 = model_norm.predict(data_x )
-    coef.append(model_norm.coef_[0])
-    n_clusters = 3
-    km = KMeans(n_clusters=n_clusters)
+    y_1 = model_fitted.predict(start=len(train_data_y), end = len(train_data_y)+len(test_data_y) - 1,dynamic=False)
+    y_1 = np.array(y_1)
+    print(y_1)
+    y_2 = np.array(model_norm.predict(Xtest))
+    
+    #coef.append(model_norm.coef_[0])
+    #n_clusters = 3
+    #km = KMeans(n_clusters=n_clusters)
+    data_other_points_x = np.zeros((236663,3))
+    n = 0
+    for i in points:
+        if i != j:
+            file = 'point_{0}_1989-01-01_00_2015-12-31_23'.format(i)
+            data_other = pd.read_fwf(file)
+            columns = data_other.columns.tolist()
+    #Take wind_speed picks_period avg_period after lasso
+            need_cols_X = [columns[2],columns[14],columns[15]]
+            data_other_points_x += data_other[need_cols_X].values
+            n+=1
+    data_other_points_x /= n
+   
+    model_norm_other = LinearRegression()
+ 
+    Xtrn, Xtest = train_test_split(data_other_points_x, shuffle=False, test_size=0.2)
+    model_norm_other.fit(Xtrn, Ytrn)
+
+    y_3 = np.array(model_norm_other.predict(Xtest))
+    
+    y_ensemble = pd.DataFrame([y_1,y_2,y_3])
+    y_ensemble = y_ensemble.transpose()
+    print(y_ensemble)
+    model_norm_other.fit(y_ensemble,Ytest)
+    print(model_norm_other.coef_)
+    y_pred_ensemble = model_norm_other.predict(Xtest)
+    plt.scatter(point,Ytest)
+    plt.scatter(point, y_pred_ensemble)
+    plt.show()
+
+
+
+
+
     coef_frame = pd.DataFrame(coef)
 # fit & predict clusters
     coef_frame['cluster'] = km.fit_predict(coef_frame)
