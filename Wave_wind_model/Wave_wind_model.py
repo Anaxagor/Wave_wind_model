@@ -24,6 +24,7 @@ from scipy.cluster import hierarchy
 import random
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from statsmodels.tsa.ar_model import AR
 
 
 
@@ -61,29 +62,42 @@ for i in range(236664):
 for j in points:
     
     file = 'point_{0}_1989-01-01_00_2015-12-31_23'.format(j)
+    
     data = pd.read_fwf(file)
     columns = data.columns.tolist()
+    #Take wind_speed picks_period avg_period after lasso
     need_cols_X = [columns[2],columns[14],columns[15]]
     need_cols_y = [columns[13]]
     data_x = data[need_cols_X]
     data_y = data[need_cols_y]
     data_x.columns = ['wind_speed','pick_period','Avg_wave_period']
     data_y.columns = ['hs']
+    train_data_y = data_y[1:len(data_y)-12]
+    y_final = []
+    #test_data = data_y[data_y[len(data_y)-12:]]
+    model_auto = AR(train_data_y)
+    model_fitted = model_auto.fit()
+    print(len(model_fitted.params))
    # data_x['wind_dir'] = data_x['wind_dir'].apply(dir)
    # data_x['wave_dir'] = data_x['wave_dir'].apply(dir)
     #clf = linear_model.Lasso(alpha=0.1, copy_X=True, fit_intercept=True, max_iter=1000, normalize=False, positive=False, precompute=False, random_state=None, selection='cyclic', tol=0.0001, warm_start=False)
     data_x = data_x.dropna()
+    train_data_x = data_x[1:len(data_x)-12]
+    
     model_norm = LinearRegression()
-    Xtrn, Xtest, Ytrn, Ytest = train_test_split(data_x, data_y, test_size=0.33)
-    for i in range (100):
-        n_split = round(random.random(),1)
-        while n_split < 0.2 or n_split==1:
-           n_split = random.random()
-        Xtrn, Xtest, Ytrn, Ytest = train_test_split(data_x, data_y, test_size=n_split)
+    Xtrn, Xtest, Ytrn, Ytest = train_test_split(train_data_x, train_data_y, test_size=0.33)
+    #for i in range (100):
+     #   n_split = round(random.random(),1)
+      #  while n_split < 0.2 or n_split==1:
+       #    n_split = random.random()
+        #Xtrn, Xtest, Ytrn, Ytest = train_test_split(data_x, data_y, test_size=n_split)
         
-        model_norm.fit(Xtrn, Ytrn)
+    model_norm.fit(Xtrn, Ytrn)
         #print(model_norm.coef_)
-        coef.append(model_norm.coef_[0])
+  
+    y_1 = model_fitted.predict(start=len(train_data_y))
+    y_2 = model_norm.predict(data_x )
+    coef.append(model_norm.coef_[0])
     n_clusters = 3
     km = KMeans(n_clusters=n_clusters)
     coef_frame = pd.DataFrame(coef)
