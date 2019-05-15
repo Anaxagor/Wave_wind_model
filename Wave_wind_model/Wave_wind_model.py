@@ -74,12 +74,12 @@ for j in points:
     data_y = data[need_cols_y]
     data_x.columns = ['wind_speed','pick_period','Avg_wave_period']
     data_y.columns = ['hs']
-    train_data_y = data_y[1:len(data_y)-47333]
-    y_final = []
-    test_data_y = data_y[len(data_y)-47333:]
-    model_auto = AR(train_data_y)
-    model_fitted = model_auto.fit()
-    print(len(model_fitted.params))
+    #train_data_y = data_y[1:len(data_y)-47333]
+    #y_final = []
+    #test_data_y = data_y[len(data_y)-47333:]
+    #model_auto = AR(train_data_y)
+    #model_fitted = model_auto.fit()
+    #print(len(model_fitted.params))
    # data_x['wind_dir'] = data_x['wind_dir'].apply(dir)
    # data_x['wave_dir'] = data_x['wave_dir'].apply(dir)
     #clf = linear_model.Lasso(alpha=0.1, copy_X=True, fit_intercept=True, max_iter=1000, normalize=False, positive=False, precompute=False, random_state=None, selection='cyclic', tol=0.0001, warm_start=False)
@@ -87,54 +87,55 @@ for j in points:
 
     
     model_norm = LinearRegression()
-    Xtrn, Xtest = train_test_split(data_x, shuffle=False, test_size=0.2)
-    Ytrn, Ytest = train_test_split(data_y, shuffle=False, test_size=0.2)
-    #for i in range (100):
-     #   n_split = round(random.random(),1)
-      #  while n_split < 0.2 or n_split==1:
-       #    n_split = random.random()
-        #Xtrn, Xtest, Ytrn, Ytest = train_test_split(data_x, data_y, test_size=n_split)
+    #Xtrn, Xtest = train_test_split(data_x, shuffle=False, test_size=0.2)
+    #Ytrn, Ytest = train_test_split(data_y, shuffle=False, test_size=0.2)
+    for i in range (100):
+        n_split = round(random.random(),1)
+        while n_split < 0.2 or n_split==1:
+           n_split = random.random()
+        Xtrn, Xtest, Ytrn, Ytest = train_test_split(data_x, data_y, test_size=n_split)
         
-    model_norm.fit(Xtrn, Ytrn)
+        model_norm.fit(Xtrn, Ytrn)
+        coef.append(model_norm.coef_[0])
         #print(model_norm.coef_)
   
-    y_1 = model_fitted.predict(start=len(train_data_y), end = len(train_data_y)+len(test_data_y) - 1,dynamic=False)
-    y_1 = np.array(y_1)
-    print(y_1)
-    y_2 = np.array(model_norm.predict(Xtest))
+    #y_1 = model_fitted.predict(start=len(train_data_y), end = len(train_data_y)+len(test_data_y) - 1,dynamic=False)
+    #y_1 = np.array(y_1)
+    #print(y_1)
+    #y_2 = np.array(model_norm.predict(Xtest))
     
     #coef.append(model_norm.coef_[0])
-    #n_clusters = 3
-    #km = KMeans(n_clusters=n_clusters)
-    data_other_points_x = np.zeros((236663,3))
-    n = 0
-    for i in points:
-        if i != j:
-            file = 'point_{0}_1989-01-01_00_2015-12-31_23'.format(i)
-            data_other = pd.read_fwf(file)
-            columns = data_other.columns.tolist()
+    n_clusters = 3
+    km = KMeans(n_clusters=n_clusters)
+    #data_other_points_x = np.zeros((236663,3))
+    #n = 0
+    #for i in points:
+    #    if i != j:
+     #       file = 'point_{0}_1989-01-01_00_2015-12-31_23'.format(i)
+      #      data_other = pd.read_fwf(file)
+       #     columns = data_other.columns.tolist()
     #Take wind_speed picks_period avg_period after lasso
-            need_cols_X = [columns[2],columns[14],columns[15]]
-            data_other_points_x += data_other[need_cols_X].values
-            n+=1
-    data_other_points_x /= n
+        #    need_cols_X = [columns[2],columns[14],columns[15]]
+         #   data_other_points_x += data_other[need_cols_X].values
+          #  n+=1
+    #data_other_points_x /= n
    
-    model_norm_other = LinearRegression()
+    #model_norm_other = LinearRegression()
  
-    Xtrn, Xtest = train_test_split(data_other_points_x, shuffle=False, test_size=0.2)
-    model_norm_other.fit(Xtrn, Ytrn)
+    #Xtrn, Xtest = train_test_split(data_other_points_x, shuffle=False, test_size=0.2)
+    #model_norm_other.fit(Xtrn, Ytrn)
 
-    y_3 = np.array(model_norm_other.predict(Xtest))
+    #y_3 = np.array(model_norm_other.predict(Xtest))
     
-    y_ensemble = pd.DataFrame([y_1,y_2,y_3])
-    y_ensemble = y_ensemble.transpose()
-    print(y_ensemble)
-    model_norm_other.fit(y_ensemble,Ytest)
-    print(model_norm_other.coef_)
-    y_pred_ensemble = model_norm_other.predict(Xtest)
-    plt.scatter(point,Ytest)
-    plt.scatter(point, y_pred_ensemble)
-    plt.show()
+    #y_ensemble = pd.DataFrame([y_1,y_2,y_3])
+    #y_ensemble = y_ensemble.transpose()
+    #print(y_ensemble)
+    #model_norm_other.fit(y_ensemble,Ytest)
+    #print(model_norm_other.coef_)
+    #y_pred_ensemble = model_norm_other.predict(Xtest)
+    #plt.scatter(point,Ytest)
+    #plt.scatter(point, y_pred_ensemble)
+    #plt.show()
 
 
 
