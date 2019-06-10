@@ -146,6 +146,8 @@ for j in points:
         norm_scaler_x = StandardScaler()
         norm_scaler_y = StandardScaler()
         norm_scaler = StandardScaler()
+
+
         data = pd.read_fwf(j)
         
         data_icefree = data.loc[(data[data.columns[17]] == 0.00) & (data[data.columns[13]] != 0)]
@@ -161,7 +163,7 @@ for j in points:
         data_icefree_new.columns = ['hs','wind_speed','wind_dir','picks_period','avg_period']
         #data = pd.DataFrame(scaler.fit_transform(data))
         data_icefree_new['wind_dir'] = data_icefree_new['wind_dir'].apply(dir)
-        #data['wave_dir'] = data['wave_dir'].apply(dir)
+        #data_icefree_new['wave_dir'] = data_icefree_new['wave_dir'].apply(dir)
        
         
         need_cols_X = ['wind_speed','wind_dir','picks_period','avg_period']
@@ -232,7 +234,7 @@ for j in points:
         
 
         
-        
+            #if mean_squared_error(Ytrn,clf.predict(Xtrn)) <= 1:
             mse.append(mean_squared_error(Ytest,clf.predict(Xtest)))
             y_pred.append(clf.predict(Xtest))
             coef.append(clf.coef_.tolist())
@@ -241,26 +243,36 @@ for j in points:
    
         
         batches = []
+        mse_points = []
+        df_mse = pd.DataFrame(mse)
+        
+        mse = scaler.fit_transform(df_mse)
+        
+        for p in range(len(mse)):
+            mse_points.append(p)
         for batch in range(int(number_of_batches)):
             batches.append(batch)
-    
+      
         #coef_frame_T = coef_frame.transpose()
         #coef_frame_T = coef_frame_T.transpose()
-    
-        sns.heatmap(coef_frame,xticklabels=1000,yticklabels=need_cols_X,cmap="YlGnBu")
+
+        sns.heatmap(coef_frame,xticklabels = 1000,yticklabels=need_cols_X,cmap="YlGnBu")
+        
+        
         plt.show()
         coef_frame_T = coef_frame.transpose()
+        #coef_frame_T['chunk'] = batches
         #X = scaler.fit_transform(coef_frame)
   
         #coef_frame = pd.DataFrame(X)
         coef_frame_T.to_csv('coef in point'+j+' chunk '+str(chunk)+'.csv')
-
+        coef_frame_T.columns = ['wind_speed','wind_dir','picks_period','avg_period']
         #cuts_for_asize(3)
         #pca = PCA(n_components=3)
         #X_pca = pca.fit_transform(coef_frame)
         #coef_frame = pd.DataFrame(X_pca)
-        X_norm = norm_scaler.fit_transform(coef_frame_T)
-        coef_frame_new = pd.DataFrame(X_norm)
+        #X_norm = norm_scaler.fit_transform(coef_frame_T)
+        #coef_frame_new = pd.DataFrame(X_norm)
         #data_X_norm_split = np.array_split(X_norm, 2)
         #clustering = DBSCAN(eps=0.3, min_samples=10).fit(data_X_norm_split[0])
         #df_lables = pd.DataFrame(clustering.labels_)
@@ -306,49 +318,59 @@ for j in points:
         #coef_frame.to_csv('PCA coef in point'+j+'.csv')
         #coef_frame.columns = ['one','two']
     
-        #km = KMeans(n_clusters=n_clusters)
-        #coef_frame['cluster'] = km.fit_predict(X_norm)
+        km = KMeans(n_clusters=n_clusters)
+        #coef_frame_T['cluster'] = km.fit_predict(coef_frame_T[['wind_speed','wind_dir','picks_period','avg_period']])
         #km.fit(X_norm)
-        #y_kmeans = km.predict(X_norm)
-        #clust1 =  coef_frame.loc[coef_frame['cluster'] == 1]
-        #clust2 =  coef_frame.loc[coef_frame['cluster'] == 2]
-        #clust3 =  coef_frame.loc[coef_frame['cluster'] == 3]
-        coef_frame_t = coef_frame_new.transpose()
-        sns.heatmap(coef_frame_t,yticklabels=need_cols_X,cmap="YlGnBu")
-        plt.show()
+        #y_kmeans = km.predict(coef_frame_T[['wind_speed','wind_dir','picks_period','avg_period']])
+        #mse_new = []
+        #clust_centr = km.cluster_centers_
+       # clust1 =  coef_frame_T.loc[coef_frame_T['cluster'] == 1]
+       # X1 = []
+       # Y1 = []
+      #  print(clust_centr[0,:])
+       # for chunk in clust1['chunk']:
+          #  X1.append(data_x_split[chunk])
+           # Y1.append(data_y_split[chunk])
+        #model1 = LinearRegression(clust_centr[0,:])
+        #mse_new.append(mean_squared_error(Y1,model1.predict(X1)))
+        #clust2 =  coef_frame_T.loc[coef_frame_T['cluster'] == 2]
+       # clust3 =  coef_frame_T.loc[coef_frame_T['cluster'] == 3]
+        
        # plt.scatter(X_norm[:,0],X_norm[:,1],c=y_kmeans, s=50, cmap='viridis')
        # plt.show()
         
         fig, axs = plt.subplots(5, 1)
-        axs[0].plot(chunks,mse)
+        axs[0].plot(batches,mse)
         axs[0].set_xlabel('chunk')
         axs[0].set_ylabel('MSE in point ' + j)
         axs[0].grid(True)
+        
    
     
-        axs[1].plot(chunks,X_norm[:,0])
+        axs[1].scatter(chunks,coef_frame_T['wind_speed'])
         axs[1].set_xlabel('chunks')
         axs[1].set_ylabel('wind_speed')
         axs[1].grid(True)
+        
 
-        axs[2].plot(chunks,X_norm[:,1])
+        axs[2].scatter(chunks,coef_frame_T['wind_dir'])
         axs[2].set_xlabel('chunks')
         axs[2].set_ylabel('wind_dir')
         axs[2].grid(True)
    
-        axs[3].plot(chunks,X_norm[:,2])
+        axs[3].scatter(chunks,coef_frame_T['picks_period'])
         axs[3].set_xlabel('chunks')
         axs[3].set_ylabel('picks_period')
         axs[3].grid(True)
 
-        axs[4].plot(chunks,X_norm[:,3])
+        axs[4].scatter(chunks,coef_frame_T['avg_period'])
         axs[4].set_xlabel('chunks')
         axs[4].set_ylabel('avg_period')
         axs[4].grid(True)
          
         
         
-       
+        coef_space1 = coef_frame_T.loc[(coef_frame_T['wind_speed'] != 0) & (coef_frame_T['wind_dir'] != 0) & (coef_frame_T['picks_period'] != 0)&(coef_frame_T['avg_period'] != 0)]
         #plt.savefig('point '+j+' chunk '+str(chunk)+'.png', format='png', dpi=100)
         #plt.clf()
         #fig.tight_layout()
@@ -437,33 +459,43 @@ for j in points:
        # label = km.labels_
             
 #data_x.to_csv('clustering.csv')
-    #scatter = dict(
+    columns = coef_space1.columns.tolist()
+    coef_space1 = coef_space1[[columns[0],columns[1],columns[2]]]
+    coef_space1.columns = ['wind_speed','wind_dir','picks_period']
+    for l in range (2,20,3):
 
-     #   mode = "markers",
-      #  name = "y",
-       # type = "scatter3d",    
-        #x = X_norm[:,0], y = X_norm[:,1], z = X_norm[:,2],
-        #marker = dict( size=2, color="rgb(23, 190, 207)" )
-#)
- #   clusters = dict(
-  #      alphahull = 7,
-   #     name = "y",
-    #    opacity = 0.1,
-     #   type = "mesh3d",    
-      #  x = X_norm[:,0], y = X_norm[:,1], z = X_norm[:,2],
-#)
- #   layout = dict(
-  #      title = '3d point clustering',
+        coef_embedded = TSNE(n_components = 3, perplexity = 5,early_exaggeration=l).fit_transform(coef_frame_T)
+        df_coef_embedded = pd.DataFrame(coef_embedded)
+        df_coef_embedded['cluster'] = km.fit_predict(df_coef_embedded)
+        df_coef_embedded.columns = ['ax1','ax2','ax3','cluster']
+        y_kmeans =  df_coef_embedded['cluster']
+        scatter = dict(
+
+            mode = "markers",
+            name = "y",
+            type = "scatter3d",    
+            x = df_coef_embedded['ax1'], y = df_coef_embedded['ax2'], z = df_coef_embedded['ax3'],
+            marker = dict( size=3, color=y_kmeans )
+    )
+        clusters = dict(
+            alphahull = 7,
+            name = "y",
+            opacity = 0.1,
+            type = "mesh3d",    
+            x = df_coef_embedded['ax1'], y = df_coef_embedded['ax2'], z = df_coef_embedded['ax3'],
+    )
+        layout = dict(
+            title = '3d point clustering',
     
     
-   #     scene = dict(
-    #    xaxis = dict(title='X'),
-     #   yaxis = dict(title='Y'),
-      #  zaxis = dict(title='Z'),
-    #)
-#)
- #   fig = dict( data=[scatter, clusters], layout=layout )
-  #  plotly.offline.plot(fig, filename='point_{0}_1989-01-01_00_2015-12-31_23.html'.format(j))
+            scene = dict(
+            xaxis = dict(title='ax1'),
+            yaxis = dict(title='ax2'),
+            zaxis = dict(title='ax3'),
+        )
+    )
+        fig = dict( data=[scatter, clusters], layout=layout )
+        plotly.offline.plot(fig, filename='early_exaggeration_{0}_72_TSNE(3 components).html'.format(l))
     
 
 
