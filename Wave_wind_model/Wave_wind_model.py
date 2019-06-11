@@ -41,6 +41,8 @@ from saxpy.sax import sax_via_window
 from saxpy.hotsax import find_discords_hotsax
 from numpy import genfromtxt
 import seaborn as sns
+import plotly.plotly as py
+import plotly.tools as tls
 
 
 
@@ -118,8 +120,10 @@ point = []
 
 
 
-for i in range(236663):
+for i in range(76333):
     point.append(i)
+
+
 
 
 
@@ -133,7 +137,7 @@ for j in points:
         new_chunks = []
         for i in range(19716):
             new_chunks.append(i)
-        number_of_batches = math.ceil(236664/chunk)
+        number_of_batches = math.ceil(76333/chunk)
         for i in range(int(number_of_batches)):
             chunks.append(i)
         y_pred = []
@@ -145,7 +149,8 @@ for j in points:
         scaler = MinMaxScaler()
         norm_scaler_x = StandardScaler()
         norm_scaler_y = StandardScaler()
-        norm_scaler = StandardScaler()
+        norm_scaler1 = StandardScaler()
+        norm_scaler2 = StandardScaler()
 
 
         data = pd.read_fwf(j)
@@ -154,7 +159,7 @@ for j in points:
         data_ice = data.loc[data[data.columns[17]] != 0.00]
         columns1 = data_icefree.columns.tolist()
 
-        mse = []
+        df_mse = pd.DataFrame()
         #Take wind_speed picks_period avg_period after lasso
         need_cols_icefree = [columns1[13],columns1[2],columns1[3],columns1[14], columns1[15]]
         need_cols_ice = [columns1[17],columns1[13],columns1[2],columns1[3],columns1[14], columns1[15]]
@@ -169,7 +174,7 @@ for j in points:
         need_cols_X = ['wind_speed','wind_dir','picks_period','avg_period']
         need_cols_y = ['hs']
         data_x = data_icefree_new[need_cols_X]
-    
+        
         data_y = data_icefree_new[need_cols_y]
         #data.columns = ['wind_speed','pick_period','Avg_wave_period','hs']
         #data.to_csv('data in point'+j+'.csv')
@@ -190,7 +195,8 @@ for j in points:
     
         
         data_icefree_new.to_csv('data in point'+j+' chunk '+str(chunk)+'.csv')
-        
+        data_x_t = data_x.transpose()
+        data_y_t = data_y.transpose()
     
        
         data_x_norm = pd.DataFrame(norm_scaler_x.fit_transform(data_x))
@@ -219,15 +225,18 @@ for j in points:
         data_x_norm_split = np.array_split(data_x_norm, number_of_batches)
         data_y_norm_split = np.array_split(data_y_norm, number_of_batches)
         coef_frame = pd.DataFrame()
+        regression_coef = pd.DataFrame()
         for batch in range(int(number_of_batches)):
         
 
             clf = linear_model.Lasso(alpha=0.1)
-            Xtrn = data_x_norm_split[batch]
-        
+
+            Xtrn = data_x_norm_split[batch]       
             Ytrn = data_y_norm_split[batch]
             Xtest = data_x_split[batch]
+            
             Ytest = data_y_split[batch]
+            
             #model_norm = LinearRegression()
             clf.fit(Xtrn,Ytrn)
         
@@ -235,21 +244,29 @@ for j in points:
 
         
             #if mean_squared_error(Ytrn,clf.predict(Xtrn)) <= 1:
-            mse.append(mean_squared_error(Ytest,clf.predict(Xtest)))
+           
+            df_mse = pd.concat([df_mse, pd.DataFrame([mean_squared_error(Ytest,clf.predict(Xtest))])],axis = 1)
             y_pred.append(clf.predict(Xtest))
-            coef.append(clf.coef_.tolist())
-        
+            coef = []
+            l1 = clf.coef_.tolist()
+            l2 = clf.intercept_.tolist()
+            coef = [l1[0],l1[1],l1[2],l1[3],l2[0]]
+            
             coef_frame = pd.concat([coef_frame,pd.DataFrame(np.transpose(clf.coef_))], axis = 1)
+            regression_coef = pd.concat([regression_coef,pd.DataFrame(np.transpose(coef))], axis=1)
    
         
         batches = []
         mse_points = []
-        df_mse = pd.DataFrame(mse)
+        df_mse_T = df_mse.transpose()
+        df_mse_T = pd.DataFrame(scaler.fit_transform(df_mse_T))
+        df_mse_T.columns = ['mse']
+        regression_coef_norm = pd.DataFrame(norm_scaler1.fit_transform(regression_coef))
+        regression_coef_T = regression_coef.transpose()
+        coef_frame_norm = pd.DataFrame(norm_scaler2.fit_transform(coef_frame))
+        #mse = scaler.fit_transform(df_mse)
         
-        mse = scaler.fit_transform(df_mse)
-        
-        for p in range(len(mse)):
-            mse_points.append(p)
+       
         for batch in range(int(number_of_batches)):
             batches.append(batch)
       
@@ -261,12 +278,14 @@ for j in points:
         
         plt.show()
         coef_frame_T = coef_frame.transpose()
-        #coef_frame_T['chunk'] = batches
+        coef_frame_T['chunk'] = batches
+        regression_coef_T['chunk'] = batches
         #X = scaler.fit_transform(coef_frame)
   
         #coef_frame = pd.DataFrame(X)
         coef_frame_T.to_csv('coef in point'+j+' chunk '+str(chunk)+'.csv')
-        coef_frame_T.columns = ['wind_speed','wind_dir','picks_period','avg_period']
+        coef_frame_T.columns = ['wind_speed','wind_dir','picks_period','avg_period','chunk']
+        regression_coef_T.columns = ['wind_speed','wind_dir','picks_period','avg_period','intercept','chunk']
         #cuts_for_asize(3)
         #pca = PCA(n_components=3)
         #X_pca = pca.fit_transform(coef_frame)
@@ -311,63 +330,206 @@ for j in points:
 
 
         #coef_frame = pd.DataFrame(X_norm)
-        n_clusters = 3
-    
+        n_clusters = [3]
+        mse_final = pd.DataFrame()    
         #coef_frame.columns = ['wind_speed coef','pick_period coef','Avg_wave_period coef']
         #coef_frame.columns = ['wind_speed_coef','pick_period in_coef','Avg_wave_period_coef']
         #coef_frame.to_csv('PCA coef in point'+j+'.csv')
         #coef_frame.columns = ['one','two']
-    
-        km = KMeans(n_clusters=n_clusters)
-        #coef_frame_T['cluster'] = km.fit_predict(coef_frame_T[['wind_speed','wind_dir','picks_period','avg_period']])
-        #km.fit(X_norm)
-        #y_kmeans = km.predict(coef_frame_T[['wind_speed','wind_dir','picks_period','avg_period']])
-        #mse_new = []
-        #clust_centr = km.cluster_centers_
-       # clust1 =  coef_frame_T.loc[coef_frame_T['cluster'] == 1]
-       # X1 = []
-       # Y1 = []
-      #  print(clust_centr[0,:])
-       # for chunk in clust1['chunk']:
-          #  X1.append(data_x_split[chunk])
-           # Y1.append(data_y_split[chunk])
-        #model1 = LinearRegression(clust_centr[0,:])
-        #mse_new.append(mean_squared_error(Y1,model1.predict(X1)))
+        chunk_clust = pd.DataFrame()
+        for n in n_clusters:
+            
+            km = KMeans(n_clusters=n)
+            km_coef = KMeans(n_clusters=n)
+            coef_frame_T['cluster'] = km.fit_predict(coef_frame_T[['wind_speed','wind_dir','picks_period','avg_period']])
+            regression_coef_T['cluster'] = km_coef.fit_predict(regression_coef_T[['wind_speed','wind_dir','picks_period','avg_period','intercept']])
+          
+            #km.fit(X_norm)
+            y_kmeans = km.predict(coef_frame_T[['wind_speed','wind_dir','picks_period','avg_period']])
+            mse_new = pd.DataFrame()
+            clust_centr =  km_coef .cluster_centers_
+            #centroid = pd.DataFrame(clust_centr)
+            #centroid.columns = ['wind_speed_coef','wind_dir_coef','picks_period_coef','avg_period_coef','intercept']
+            #centroid.to_csv('cluster_coef.csv')
+            #print(clust_centr)
+            for cluster in range(n):
+                model = LinearRegression()
+                model.coef_=clust_centr[cluster,0:4]
+                model.intercept_ = clust_centr[cluster,4]
+                clust = pd.DataFrame()
+                clust =  regression_coef_T.loc[regression_coef_T['cluster'] == (cluster)]            
+                for ch in clust['chunk']:
+                    chunk_clust = pd.concat([chunk_clust,pd.DataFrame(np.transpose([ch,cluster]))], axis=1)
+                    array = np.array([ch,mean_squared_error(data_y_split[ch],model.predict(data_x_split[ch]))])
+                    mse_new = pd.concat([mse_new,pd.DataFrame(np.transpose(array))], axis=1)
+            chunk_clust_T = chunk_clust.transpose()
+            chunk_clust_T.columns = ['chunk','clust']
+            chunk_clust_T = chunk_clust_T.sort_values(['chunk','clust'], ascending=[True, False])
+           
+            mse_new_T = mse_new.transpose()
+            mse_new_T.columns = ['chunk','mse']
+            mse_new_T = mse_new_T.sort_values(['chunk','mse'], ascending=[True, False])
+            #print(mse_new_T)
+            #mse_new_norm = scaler.fit_transform(mse_new_T[['mse']])
+            mse_final = pd.concat([mse_final,mse_new_T[['mse']]], axis=1)
+
+
+
+            
+       
+        
+        
+        
+        mse_final = pd.DataFrame(scaler.fit_transform(mse_final))    
+        mse_final.columns = ['k1']
         #clust2 =  coef_frame_T.loc[coef_frame_T['cluster'] == 2]
        # clust3 =  coef_frame_T.loc[coef_frame_T['cluster'] == 3]
         
        # plt.scatter(X_norm[:,0],X_norm[:,1],c=y_kmeans, s=50, cmap='viridis')
        # plt.show()
-        
+        #colors_points = pd.DataFrame()
+        #for c in chunk_clust_T['clust']:
+         #   for i in range(72):
+          #      colors_points = pd.concat([colors_points,pd.DataFrame([c])], axis=1)
+           #     print(colors_points)
+ 
+        #colors_points_T = colors_points.transpose()
+        #colors_points_T.columns = ['color']
+        #colors_points_T.to_csv('colors.csv')
+        #print('-----------------------colors done------------------------------------')
         fig, axs = plt.subplots(5, 1)
-        axs[0].plot(batches,mse)
-        axs[0].set_xlabel('chunk')
-        axs[0].set_ylabel('MSE in point ' + j)
-        axs[0].grid(True)
+     
         
-   
-    
-        axs[1].scatter(chunks,coef_frame_T['wind_speed'])
-        axs[1].set_xlabel('chunks')
-        axs[1].set_ylabel('wind_speed')
-        axs[1].grid(True)
         
 
-        axs[2].scatter(chunks,coef_frame_T['wind_dir'])
-        axs[2].set_xlabel('chunks')
-        axs[2].set_ylabel('wind_dir')
+
+        wind_speed_array = data_icefree_new['wind_speed'].values
+        wind_speed_array_split = np.array_split(wind_speed_array, number_of_batches)
+        point_split = np.array_split(point, number_of_batches)
+        
+        for ch in range(number_of_batches):
+            color = 'blue'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==0:
+                color = 'darkred'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==1:
+                color = 'darkblue'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==2:
+                color = 'green'
+            
+            axs[0].scatter(point_split[ch],wind_speed_array_split[ch],s=10,c=color)
+        axs[0].set_xlabel('points')
+        axs[0].set_ylabel('wind_speed ' + j)
+        axs[0].grid(True)
+
+        wind_dir_array = data_icefree_new['wind_dir'].values
+        wind_dir_array_split = np.array_split(wind_dir_array, number_of_batches)
+        point_split = np.array_split(point, number_of_batches)
+        
+        for ch in range(number_of_batches):
+            color = 'blue'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==0:
+                color = 'darkred'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==1:
+                color = 'darkblue'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==2:
+                color = 'green'
+            
+            axs[1].scatter(point_split[ch],wind_dir_array_split[ch],s=10,c=color)
+        axs[1].set_xlabel('points')
+        axs[1].set_ylabel('wind_dir ' + j)
+        axs[1].grid(True)
+
+        picks_period_array = data_icefree_new['picks_period'].values
+        picks_period_array_split = np.array_split(picks_period_array, number_of_batches)
+        point_split = np.array_split(point, number_of_batches)
+        
+        for ch in range(number_of_batches):
+            color = 'blue'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==0:
+                color = 'darkred'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==1:
+                color = 'darkblue'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==2:
+                color = 'green'
+            
+            axs[2].scatter(point_split[ch],picks_period_array_split[ch],s=10,c=color)
+        axs[2].set_xlabel('points')
+        axs[2].set_ylabel('picks_period ' + j)
         axs[2].grid(True)
-   
-        axs[3].scatter(chunks,coef_frame_T['picks_period'])
-        axs[3].set_xlabel('chunks')
-        axs[3].set_ylabel('picks_period')
+
+
+        avg_period_array = data_icefree_new['avg_period'].values
+        avg_period_array_split = np.array_split(avg_period_array, number_of_batches)
+        point_split = np.array_split(point, number_of_batches)
+        
+        for ch in range(number_of_batches):
+            color = 'blue'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==0:
+                color = 'darkred'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==1:
+                color = 'darkblue'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==2:
+                color = 'green'
+            
+            axs[3].scatter(point_split[ch],avg_period_array_split[ch],s=10,c=color)
+        axs[3].set_xlabel('points')
+        axs[3].set_ylabel('avg_period ' + j)
         axs[3].grid(True)
 
-        axs[4].scatter(chunks,coef_frame_T['avg_period'])
-        axs[4].set_xlabel('chunks')
-        axs[4].set_ylabel('avg_period')
+        hs_array = data_icefree_new['hs'].values
+        hs_array_split = np.array_split(hs_array, number_of_batches)
+        point_split = np.array_split(point, number_of_batches)
+        
+        for ch in range(number_of_batches):
+            color = 'blue'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==0:
+                color = 'darkred'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==1:
+                color = 'darkblue'
+            if (chunk_clust_T.loc[chunk_clust_T['chunk'] == (ch)]['clust'].values[0])==2:
+                color = 'green'
+            
+            axs[4].scatter(point_split[ch],hs_array_split[ch],s=10,c=color)
+        axs[4].set_xlabel('points')
+        axs[4].set_ylabel('hs ' + j)
         axs[4].grid(True)
-         
+
+
+
+
+       
+       
+    
+
+        
+   
+     
+        #axs[1].scatter(batches, coef_frame_T['wind_speed'],s=10,c=regression_coef_T['cluster'])
+        #axs[1].set_xlabel('chunks')
+        #axs[1].set_ylabel('wind_speed 3 clusters')
+        #axs[1].grid(True)
+      
+        
+
+        #axs[2].scatter(batches, coef_frame_T['wind_dir'],s=10,c=regression_coef_T['cluster'])
+        #axs[2].set_xlabel('chunks')
+        #axs[2].set_ylabel('wind_dir 3 clusters')
+        #axs[2].grid(True)
+       
+   
+        #axs[3].scatter(batches, coef_frame_T['picks_period'],s=10,c=regression_coef_T['cluster'])
+        #axs[3].set_xlabel('chunks')
+        #axs[3].set_ylabel('picks_period 3 clusters')
+        #axs[3].grid(True)
+
+        #axs[4].scatter(batches, coef_frame_T['avg_period'],s=10,c=regression_coef_T['cluster'])
+        #axs[4].set_xlabel('chunks')
+        #axs[4].set_ylabel('avg_period 3 clusters')
+        #axs[4].grid(True)
+       
+
+       
+        plt.show()
         
         
         coef_space1 = coef_frame_T.loc[(coef_frame_T['wind_speed'] != 0) & (coef_frame_T['wind_dir'] != 0) & (coef_frame_T['picks_period'] != 0)&(coef_frame_T['avg_period'] != 0)]
