@@ -43,6 +43,9 @@ from numpy import genfromtxt
 import seaborn as sns
 import plotly.plotly as py
 import plotly.tools as tls
+from statsmodels.regression.linear_model import OLS
+from statsmodels.tools import add_constant
+from sklearn.ensemble import RandomForestClassifier
 
 
 
@@ -104,6 +107,12 @@ def LB_Keogh(s1,s2,r):
             LB_sum=LB_sum+(i-lower_bound)**2
     
     return sqrt(LB_sum)
+
+def aic(y, y_pred, k):
+   resid = np.array(y) - np.array(y_pred)
+   sse = sum(resid ** 2)
+   AIC = 2*k - 2*np.log(sse)
+   return AIC
 
 
 
@@ -226,11 +235,15 @@ for j in points:
         data_y_norm_split = np.array_split(data_y_norm, number_of_batches)
         coef_frame = pd.DataFrame()
         regression_coef = pd.DataFrame()
+        feature_importance = pd.DataFrame()
+        aic_df = pd.DataFrame()
+        
+        
         for batch in range(int(number_of_batches)):
         
 
             clf = linear_model.Lasso(alpha=0.1)
-
+            random_forest_model = RandomForestRegressor()
             Xtrn = data_x_norm_split[batch]       
             Ytrn = data_y_norm_split[batch]
             Xtest = data_x_split[batch]
@@ -238,7 +251,9 @@ for j in points:
             Ytest = data_y_split[batch]
             
             #model_norm = LinearRegression()
-            clf.fit(Xtrn,Ytrn)
+            clf.fit(Xtest,Ytest)
+      
+            random_forest_model.fit(Xtrn, Ytrn)
         
         
 
@@ -254,15 +269,32 @@ for j in points:
             
             coef_frame = pd.concat([coef_frame,pd.DataFrame(np.transpose(clf.coef_))], axis = 1)
             regression_coef = pd.concat([regression_coef,pd.DataFrame(np.transpose(coef))], axis=1)
+            feature_importance = pd.concat([feature_importance,pd.DataFrame(np.transpose(random_forest_model.feature_importances_))], axis=1)
+           
+            aic_df = pd.concat([aic_df,pd.DataFrame(np.transpose([np.mean(aic(Ytest,clf.predict(Xtest),4)),np.mean(aic(Ytest,random_forest_model.predict(Xtest),4))]))], axis=1)
    
-        
         batches = []
+        for batch in range(int(number_of_batches)):
+            batches.append(batch)
+      
+            
+            
+        aic_df_T = aic_df.transpose()
+        aic_df_T.columns = ['linear_aic', 'forest_aic']
+        plt.plot(batches,aic_df_T['linear_aic'],label='Linear regression with Lasso')
+        plt.plot(batches,aic_df_T['forest_aic'],label='Random forest regression')
+        
+        plt.legend()
+        #sns.heatmap(feature_importance,xticklabels = 1000,yticklabels=need_cols_X,cmap="YlGnBu")
+        plt.show()
+       
         mse_points = []
         df_mse_T = df_mse.transpose()
-        df_mse_T = pd.DataFrame(scaler.fit_transform(df_mse_T))
+        #df_mse_T = pd.DataFrame(scaler.fit_transform(df_mse_T))
         df_mse_T.columns = ['mse']
         regression_coef_norm = pd.DataFrame(norm_scaler1.fit_transform(regression_coef))
         regression_coef_T = regression_coef.transpose()
+        feature_importance_T = feature_importance.transpose()
         coef_frame_norm = pd.DataFrame(norm_scaler2.fit_transform(coef_frame))
         #mse = scaler.fit_transform(df_mse)
         
